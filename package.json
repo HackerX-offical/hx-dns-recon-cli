@@ -13,9 +13,18 @@
     "dev": "tsx src/cli.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.integration.config.js",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
-  "keywords": ["dns", "recon", "osint", "subdomain", "cli", "hackerx"],
+  "keywords": [
+    "dns",
+    "recon",
+    "osint",
+    "subdomain",
+    "cli",
+    "hackerx"
+  ],
   "author": "HackerX Official",
   "license": "MIT",
   "engines": {
@@ -30,6 +39,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.0",
     "jest": "^30.2.0",
+    "prettier": "^3.6.2",
     "ts-jest": "^29.4.6",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"

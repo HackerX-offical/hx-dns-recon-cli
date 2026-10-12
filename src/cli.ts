@@ -85,9 +85,7 @@ program
         console.log(JSON.stringify({ domain, results }, null, 2));
       } else {
         for (const r of results) {
-          const status = r.vulnerable
-            ? chalk.red('VULNERABLE')
-            : chalk.green('OK');
+          const status = r.vulnerable ? chalk.red('VULNERABLE') : chalk.green('OK');
           console.log(`${r.nameserver}: ${status}${r.error ? chalk.dim(` (${r.error})`) : ''}`);
         }
       }
@@ -104,51 +102,43 @@ program
   .argument('<domain>', 'apex domain')
   .option('--json', 'JSON output')
   .option('--no-ct', 'skip crt.sh subdomain pass')
-  .action(
-    async (
-      domain: string,
-      opts: { json?: boolean; ct?: boolean },
-    ) => {
-      const spinner = ora('Running DNS recon').start();
-      try {
-        const records = await resolveRecords(domain);
-        spinner.text = 'Certificate Transparency';
-        const subdomains =
-          opts.ct === false ? [] : await fetchCrtShSubdomains(domain);
-        spinner.text = 'Zone transfer check';
-        const axfr = await checkZoneTransfer(domain);
-        spinner.succeed('Done');
+  .action(async (domain: string, opts: { json?: boolean; ct?: boolean }) => {
+    const spinner = ora('Running DNS recon').start();
+    try {
+      const records = await resolveRecords(domain);
+      spinner.text = 'Certificate Transparency';
+      const subdomains = opts.ct === false ? [] : await fetchCrtShSubdomains(domain);
+      spinner.text = 'Zone transfer check';
+      const axfr = await checkZoneTransfer(domain);
+      spinner.succeed('Done');
 
-        const payload = {
-          domain,
-          records,
-          subdomains,
-          axfr,
-        };
+      const payload = {
+        domain,
+        records,
+        subdomains,
+        axfr,
+      };
 
-        if (opts.json) {
-          console.log(JSON.stringify(payload, null, 2));
-          return;
-        }
-
-        printRecords(domain, records, false);
-        console.log(chalk.bold(`\nSubdomains (CT): ${subdomains.length}`));
-        subdomains.slice(0, 25).forEach((s) => console.log(`  ${s}`));
-        if (subdomains.length > 25) {
-          console.log(chalk.dim(`  ... and ${subdomains.length - 25} more`));
-        }
-        console.log(chalk.bold('\nAXFR'));
-        for (const r of axfr) {
-          const status = r.vulnerable
-            ? chalk.red('VULNERABLE')
-            : chalk.green('refused/ok');
-          console.log(`  ${r.nameserver}: ${status}`);
-        }
-      } catch (err) {
-        spinner.fail(err instanceof Error ? err.message : String(err));
-        process.exit(1);
+      if (opts.json) {
+        console.log(JSON.stringify(payload, null, 2));
+        return;
       }
-    },
-  );
+
+      printRecords(domain, records, false);
+      console.log(chalk.bold(`\nSubdomains (CT): ${subdomains.length}`));
+      subdomains.slice(0, 25).forEach((s) => console.log(`  ${s}`));
+      if (subdomains.length > 25) {
+        console.log(chalk.dim(`  ... and ${subdomains.length - 25} more`));
+      }
+      console.log(chalk.bold('\nAXFR'));
+      for (const r of axfr) {
+        const status = r.vulnerable ? chalk.red('VULNERABLE') : chalk.green('refused/ok');
+        console.log(`  ${r.nameserver}: ${status}`);
+      }
+    } catch (err) {
+      spinner.fail(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  });
 
 program.parse();

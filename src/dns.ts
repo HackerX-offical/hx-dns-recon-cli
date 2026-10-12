@@ -1,14 +1,6 @@
 import dns from 'node:dns/promises';
 
-export type RecordType =
-  | 'A'
-  | 'AAAA'
-  | 'MX'
-  | 'TXT'
-  | 'NS'
-  | 'CNAME'
-  | 'SOA'
-  | 'CAA';
+export type RecordType = 'A' | 'AAAA' | 'MX' | 'TXT' | 'NS' | 'CNAME' | 'SOA' | 'CAA';
 
 const RESOLVERS: Record<RecordType, (domain: string) => Promise<unknown>> = {
   A: (d) => dns.resolve4(d),

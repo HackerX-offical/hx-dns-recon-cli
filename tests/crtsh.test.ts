@@ -18,8 +18,8 @@ describe('fetchCrtShSubdomains', () => {
 
   it('throws on HTTP errors', async () => {
     const mockFetch = jest.fn().mockResolvedValue({ ok: false, status: 503 });
-    await expect(
-      fetchCrtShSubdomains('example.com', mockFetch as typeof fetch),
-    ).rejects.toThrow('crt.sh HTTP 503');
+    await expect(fetchCrtShSubdomains('example.com', mockFetch as typeof fetch)).rejects.toThrow(
+      'crt.sh HTTP 503',
+    );
   });
 });
