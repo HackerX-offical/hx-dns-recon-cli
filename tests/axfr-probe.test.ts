@@ -9,9 +9,7 @@ describe('checkZoneTransfer', () => {
       resolve4: async () => [],
       queryAxfr: async () => [],
     });
-    expect(results).toEqual([
-      { nameserver: '(none)', vulnerable: false, error: 'No NS records' },
-    ]);
+    expect(results).toEqual([{ nameserver: '(none)', vulnerable: false, error: 'No NS records' }]);
   });
 
   it('marks vulnerable when AXFR returns data', async () => {

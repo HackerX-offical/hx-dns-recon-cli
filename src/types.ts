@@ -1,13 +1,6 @@
 export type RecordType = 'A' | 'AAAA' | 'MX' | 'TXT' | 'NS' | 'CNAME' | 'SOA' | 'CAA';
 
-export const DEFAULT_RECORD_TYPES: RecordType[] = [
-  'A',
-  'AAAA',
-  'MX',
-  'TXT',
-  'NS',
-  'SOA',
-];
+export const DEFAULT_RECORD_TYPES: RecordType[] = ['A', 'AAAA', 'MX', 'TXT', 'NS', 'SOA'];
 
 export interface DnsRecordResult {
   type: RecordType;

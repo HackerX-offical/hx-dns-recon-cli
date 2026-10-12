@@ -4,10 +4,7 @@ import { extractSubdomainsFromRows, fetchCrtShSubdomains } from '../src/crtsh/cl
 describe('extractSubdomainsFromRows', () => {
   it('filters names to the apex zone and strips wildcards', () => {
     const subs = extractSubdomainsFromRows(
-      [
-        { name_value: 'www.example.com\n*.api.example.com' },
-        { common_name: 'other.org' },
-      ],
+      [{ name_value: 'www.example.com\n*.api.example.com' }, { common_name: 'other.org' }],
       'example.com',
     );
     expect(subs).toEqual(['api.example.com', 'www.example.com']);
