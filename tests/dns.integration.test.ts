@@ -1,4 +1,4 @@
-import { resolveRecords } from '../src/dns.js';
+import { resolveRecords } from '../src/resolvers/resolve-records.js';
 
 describe('resolveRecords (live)', () => {
   it('resolves A/NS for example.com', async () => {

@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import chalk from 'chalk';
 import ora from 'ora';
-import { fetchCrtShSubdomains } from './crtsh.js';
-import { checkZoneTransfer } from './axfr.js';
-import { formatRecordValue, resolveRecords } from './dns.js';
+import { fetchCrtShSubdomains } from './crtsh/client.js';
+import { checkZoneTransfer } from './axfr/probe.js';
+import { resolveRecords } from './resolvers/resolve-records.js';
+import {
+  axfrJson,
+  printAxfrCheck,
+  printAxfrResults,
+  printDnsRecords,
+  printSubdomainList,
+  recordsJson,
+  reconJson,
+  subdomainsJson,
+} from './reporters/index.js';
 
 const program = new Command();
 
@@ -12,26 +21,6 @@ program
   .name('hx-dns')
   .description('DNS reconnaissance for authorized assessments')
   .version('1.0.0');
-
-function printRecords(
-  domain: string,
-  records: Awaited<ReturnType<typeof resolveRecords>>,
-  json: boolean,
-) {
-  if (json) {
-    console.log(JSON.stringify({ domain, records }, null, 2));
-    return;
-  }
-  console.log(chalk.bold(`\n${domain}\n`));
-  for (const r of records) {
-    const label = chalk.cyan(r.type.padEnd(5));
-    if (r.error && (r.values as unknown[]).length === 0) {
-      console.log(`${label} ${chalk.dim(r.error)}`);
-    } else {
-      console.log(`${label} ${formatRecordValue(r.values)}`);
-    }
-  }
-}
 
 program
   .command('records')
@@ -43,7 +32,11 @@ program
     try {
       const records = await resolveRecords(domain);
       spinner.stop();
-      printRecords(domain, records, Boolean(opts.json));
+      if (opts.json) {
+        console.log(recordsJson(domain, records));
+      } else {
+        printDnsRecords(domain, records);
+      }
     } catch (err) {
       spinner.fail(err instanceof Error ? err.message : String(err));
       process.exit(1);
@@ -61,7 +54,7 @@ program
       const subs = await fetchCrtShSubdomains(domain);
       spinner.succeed(`Found ${subs.length} names`);
       if (opts.json) {
-        console.log(JSON.stringify({ domain, subdomains: subs }, null, 2));
+        console.log(subdomainsJson(domain, subs));
       } else {
         subs.forEach((s) => console.log(s));
       }
@@ -82,12 +75,9 @@ program
       const results = await checkZoneTransfer(domain);
       spinner.stop();
       if (opts.json) {
-        console.log(JSON.stringify({ domain, results }, null, 2));
+        console.log(axfrJson(domain, results));
       } else {
-        for (const r of results) {
-          const status = r.vulnerable ? chalk.red('VULNERABLE') : chalk.green('OK');
-          console.log(`${r.nameserver}: ${status}${r.error ? chalk.dim(` (${r.error})`) : ''}`);
-        }
+        printAxfrCheck(results);
       }
       if (results.some((r) => r.vulnerable)) process.exit(2);
     } catch (err) {
@@ -112,29 +102,17 @@ program
       const axfr = await checkZoneTransfer(domain);
       spinner.succeed('Done');
 
-      const payload = {
-        domain,
-        records,
-        subdomains,
-        axfr,
-      };
+      const payload = { domain, records, subdomains, axfr };
 
       if (opts.json) {
-        console.log(JSON.stringify(payload, null, 2));
+        console.log(reconJson(payload));
         return;
       }
 
-      printRecords(domain, records, false);
-      console.log(chalk.bold(`\nSubdomains (CT): ${subdomains.length}`));
-      subdomains.slice(0, 25).forEach((s) => console.log(`  ${s}`));
-      if (subdomains.length > 25) {
-        console.log(chalk.dim(`  ... and ${subdomains.length - 25} more`));
-      }
-      console.log(chalk.bold('\nAXFR'));
-      for (const r of axfr) {
-        const status = r.vulnerable ? chalk.red('VULNERABLE') : chalk.green('refused/ok');
-        console.log(`  ${r.nameserver}: ${status}`);
-      }
+      printDnsRecords(domain, records);
+      printSubdomainList(subdomains);
+      console.log('\nAXFR');
+      printAxfrResults(axfr, '  ');
     } catch (err) {
       spinner.fail(err instanceof Error ? err.message : String(err));
       process.exit(1);

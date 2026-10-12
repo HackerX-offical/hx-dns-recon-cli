@@ -1,16 +1,18 @@
 import dns from 'node:dns/promises';
 import { Socket } from 'node:net';
+import type { AxfrResult } from '../types.js';
+import { normalizeDomain } from '../resolvers/normalize.js';
+import { encodeAxfrQuery } from './encode-query.js';
 
-const AXFR_TIMEOUT_MS = 8000;
+export const AXFR_TIMEOUT_MS = 8000;
 
-export interface AxfrResult {
-  nameserver: string;
-  vulnerable: boolean;
-  recordCount?: number;
-  error?: string;
+export interface AxfrProbeDeps {
+  resolveNs: (zone: string) => Promise<string[]>;
+  resolve4: (host: string) => Promise<string[]>;
+  queryAxfr: (nameserverIp: string, zone: string) => Promise<string[]>;
 }
 
-function queryAxfr(nameserver: string, zone: string): Promise<string[]> {
+export function queryAxfrOverTcp(nameserver: string, zone: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const socket = new Socket();
     const records: string[] = [];
@@ -23,14 +25,14 @@ function queryAxfr(nameserver: string, zone: string): Promise<string[]> {
 
     socket.connect(53, nameserver, () => {
       const id = Math.floor(Math.random() * 65535);
-      const question = encodeQuery(id, zone);
+      const question = encodeAxfrQuery(id, zone);
       socket.write(question);
     });
 
     socket.on('data', (chunk) => {
       buffer = Buffer.concat([buffer, chunk]);
       if (buffer.length >= 12) {
-        const rcode = (buffer[3] >> 0) & 0xf;
+        const rcode = buffer[3] & 0xf;
         if (rcode !== 0 && buffer.length > 12) {
           clearTimeout(timer);
           socket.destroy();
@@ -57,41 +59,20 @@ function queryAxfr(nameserver: string, zone: string): Promise<string[]> {
   });
 }
 
-function encodeQuery(id: number, zone: string): Buffer {
-  const labels = zone.split('.').filter(Boolean);
-  const parts: number[] = [
-    (id >> 8) & 0xff,
-    id & 0xff,
-    0x00,
-    0x00,
-    0x00,
-    0x01,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
-  ];
+const defaultDeps: AxfrProbeDeps = {
+  resolveNs: (zone) => dns.resolveNs(zone),
+  resolve4: (host) => dns.resolve4(host),
+  queryAxfr: queryAxfrOverTcp,
+};
 
-  for (const label of labels) {
-    parts.push(label.length);
-    for (const ch of label) {
-      parts.push(ch.charCodeAt(0));
-    }
-  }
-  parts.push(0);
-  parts.push(0x00, 0xfc);
-  parts.push(0x00, 0x01);
-
-  return Buffer.from(parts);
-}
-
-export async function checkZoneTransfer(domain: string): Promise<AxfrResult[]> {
-  const zone = domain.toLowerCase().replace(/\.$/, '');
+export async function checkZoneTransfer(
+  domain: string,
+  deps: AxfrProbeDeps = defaultDeps,
+): Promise<AxfrResult[]> {
+  const zone = normalizeDomain(domain);
   let nsHosts: string[] = [];
   try {
-    nsHosts = await dns.resolveNs(zone);
+    nsHosts = await deps.resolveNs(zone);
   } catch {
     return [{ nameserver: '(none)', vulnerable: false, error: 'No NS records' }];
   }
@@ -101,14 +82,14 @@ export async function checkZoneTransfer(domain: string): Promise<AxfrResult[]> {
   for (const ns of nsHosts) {
     let ip = ns;
     try {
-      const resolved = await dns.resolve4(ns);
+      const resolved = await deps.resolve4(ns);
       if (resolved[0]) ip = resolved[0];
     } catch {
       // use hostname as-is
     }
 
     try {
-      const data = await queryAxfr(ip, zone);
+      const data = await deps.queryAxfr(ip, zone);
       const vulnerable = data.length > 0;
       results.push({
         nameserver: ns,

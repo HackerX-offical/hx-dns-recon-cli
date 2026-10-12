@@ -1,15 +1,13 @@
-export interface CrtShEntry {
-  name: string;
-  issuer?: string;
-  notBefore?: string;
-  notAfter?: string;
-}
+import type { CrtShRow } from '../types.js';
+import { normalizeDomain } from '../resolvers/normalize.js';
+
+export type FetchFn = typeof fetch;
 
 export async function fetchCrtShSubdomains(
   domain: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: FetchFn = fetch,
 ): Promise<string[]> {
-  const normalized = domain.toLowerCase().replace(/\.$/, '');
+  const normalized = normalizeDomain(domain);
   const url = `https://crt.sh/?q=${encodeURIComponent(`%.${normalized}`)}&output=json`;
 
   const res = await fetchImpl(url, {
@@ -24,24 +22,27 @@ export async function fetchCrtShSubdomains(
   const text = await res.text();
   if (!text.trim()) return [];
 
-  let rows: Array<{ common_name?: string; name_value?: string }>;
+  let rows: CrtShRow[];
   try {
-    rows = JSON.parse(text) as Array<{ common_name?: string; name_value?: string }>;
+    rows = JSON.parse(text) as CrtShRow[];
   } catch {
     throw new Error('crt.sh returned invalid JSON');
   }
 
+  return extractSubdomainsFromRows(rows, normalized);
+}
+
+export function extractSubdomainsFromRows(rows: CrtShRow[], apex: string): string[] {
   const names = new Set<string>();
   for (const row of rows) {
     const blob = row.name_value ?? row.common_name ?? '';
     for (const part of blob.split('\n')) {
       const n = part.trim().toLowerCase().replace(/^\*\./, '');
       if (!n) continue;
-      if (n === normalized || n.endsWith(`.${normalized}`)) {
+      if (n === apex || n.endsWith(`.${apex}`)) {
         names.add(n);
       }
     }
   }
-
   return [...names].sort();
 }
