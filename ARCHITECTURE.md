@@ -1,52 +1,54 @@
-# hx-dns-recon-cli architecture
+# hx-dns-recon-cli — architecture
 
-DNS reconnaissance CLI for authorized security assessments. The codebase is split into small modules so resolvers, parsers, CT lookup, AXFR probing, and output formatting can be tested without live network calls (except optional integration tests).
+## Purpose
 
-## Layout
+Resolves DNS records, enumerates subdomains from Certificate Transparency, and probes
+for AXFR misconfigurations on a given apex domain. Outputs engagement-ready text or
+JSON. Non-goals: passive DNS historical archives, DNS brute force, or internal zone
+walking.
 
-```
-src/
-  types.ts                 # Shared types and default record sets
-  cli.ts                   # Commander entrypoint (hx-dns)
-  index.ts                 # Library re-exports
-  resolvers/
-    normalize.ts           # Domain normalization
-    node-resolver.ts       # node:dns/promises bindings
-    resolve-records.ts     # Multi-type resolve orchestration (injectable resolvers)
-  parsers/
-    a.ts, aaaa.ts, cname.ts, txt.ts, mx.ts
-    format.ts              # formatRecordByType + generic fallback
-  crtsh/
-    client.ts              # crt.sh HTTP client (fetch injectable for tests)
-  axfr/
-    encode-query.ts        # DNS AXFR query packet builder
-    probe.ts               # TCP AXFR probe + checkZoneTransfer (deps injectable)
-  reporters/
-    json.ts                # JSON payloads for --json
-    table.ts               # Chalk table output for TTY
-tests/
-  *.test.ts                # Unit tests (mocks/fixtures only)
-  *.integration.test.ts    # Live DNS (npm run test:integration)
+## High-level flow
+
+```mermaid
+flowchart LR
+  CLI[cli.ts] --> Resolvers[resolvers/resolve-records]
+  CLI --> CrtSh[crtsh/client]
+  CLI --> Axfr[axfr/probe]
+  Resolvers --> Parsers[parsers/*]
+  CLI --> Reporters[reporters/table & json]
+  Axfr --> AxfrEnc[axfr/encode-query]
 ```
 
-## Data flow
+## Module map
 
-1. **records / recon** — `resolveRecords` calls per-type resolvers, then reporters format via `formatRecordByType`.
-2. **subdomains** — `fetchCrtShSubdomains` queries crt.sh; `extractSubdomainsFromRows` filters to the apex zone.
-3. **axfr** — NS records from DNS, resolve to IPv4, `queryAxfrOverTcp` with `encodeAxfrQuery`; misconfiguration if response data is returned.
-4. **recon** — Combines the three paths; JSON via `reporters/json.ts`.
+| Path                               | Responsibility                                       |
+| ---------------------------------- | ---------------------------------------------------- |
+| `src/cli.ts`                       | `records`, `subdomains`, `axfr`, `recon` commands    |
+| `src/index.ts`                     | Library entry re-exports                             |
+| `src/types.ts`                     | DNS record and AXFR result types                     |
+| `src/resolvers/resolve-records.ts` | Orchestrate record lookups for a domain              |
+| `src/resolvers/node-resolver.ts`   | Node `dns.promises` wrapper                          |
+| `src/resolvers/normalize.ts`       | Record normalization helpers                         |
+| `src/parsers/*.ts`                 | Per-type record formatting (A, AAAA, MX, TXT, CNAME) |
+| `src/parsers/format.ts`            | Shared formatting utilities                          |
+| `src/crtsh/client.ts`              | crt.sh HTTP client and subdomain dedupe              |
+| `src/axfr/probe.ts`                | NS discovery and AXFR attempt per nameserver         |
+| `src/axfr/encode-query.ts`         | DNS wire encoding for AXFR queries                   |
+| `src/reporters/table.ts`           | Human-readable console output                        |
+| `src/reporters/json.ts`            | JSON serializers per command                         |
 
-## Develop
+## Extension
 
-```bash
-npm install
-npm run build
-npm test
-npm run test:integration   # optional live DNS
-```
+1. Add a record type under `parsers/` and wire it in `resolve-records.ts`.
+2. Add a reporter field in `reporters/json.ts` for new data.
+3. Keep live DNS/crt.sh calls out of unit tests — mock at resolver or client boundary.
+4. Run `npm test` and `npm run format:check`.
 
-## Deep bar
+## Testing strategy
 
-This repo targets HackerX `org-standards/verify-deep.sh`: at least 12 non-test `.ts` files under `src/` and at least 6 `*.test.ts` files.
+- **Unit**: parsers, normalizers, reporters, AXFR encoding — no live network.
+- **Integration**: `jest.integration.config.js` — optional live domain probes.
 
-See [SECURITY.md](./SECURITY.md) for authorized use.
+## Ethics & scope
+
+Authorized engagements only. See [SECURITY.md](./SECURITY.md).
