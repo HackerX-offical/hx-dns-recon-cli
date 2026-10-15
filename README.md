@@ -21,7 +21,7 @@ authorized to assess.
 ## Install
 
 ```bash
-git clone https://github.com/HackerX-offical/hx-dns-recon-cli.git
+git clone https://github.com/HackerX-official/hx-dns-recon-cli.git
 cd hx-dns-recon-cli
 npm install
 npm run build
